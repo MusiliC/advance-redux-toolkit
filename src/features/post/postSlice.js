@@ -3,48 +3,71 @@ import { sub } from "date-fns";
 import axios from "axios";
 const POSTS_URL = "https://jsonplaceholder.typicode.com/posts";
 
-
-
+//get posts
 
 export const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
   try {
     const response = await axios.get(POSTS_URL);
-
-    return [...response.data];
+    console.log(response.data);
+    return response.data;
   } catch (error) {
     return error.message;
   }
 });
 
+//create post
+
+export const addNewPost = createAsyncThunk(
+  "posts/addNewPost",
+  async (initialPost) => {
+    try {
+      const response = await axios.post(POSTS_URL, initialPost);
+
+      return response.data;
+    } catch (error) {
+      return error.message;
+    }
+  }
+);
+
+//update post
+
+export const updatePost = createAsyncThunk(
+  "posts/updatePost",
+  async (initialPost) => {
+    const { id } = initialPost;
+
+    try {
+      const response = await axios.put(`${POSTS_URL}/${id}`, initialPost);
+      return response.data;
+    } catch (error) {
+      return initialState;
+    }
+  }
+);
+
+//delete post
+
+export const deletePost = createAsyncThunk(
+  "posts/deletePost",
+  async (initialPost) => {
+    const { id } = initialPost;
+
+    try {
+      const response = await axios.delete(`${POSTS_URL}/${id}`);
+      if (response?.status === 200) return initialPost;
+      return `${response.status} : ${response.statusText}`;
+    } catch (error) {
+      console.log(error.message);
+    }
+  }
+);
+
 const initialState = {
-  // {
-  //   id: 1,
-  //   title: "learning redux toolkit",
-  //   content: "Good understanding",
-  //   date: sub(new Date(), { minutes: 10 }).toISOString(),
-  //   reactions: {
-  //     thumpsUp: 0,
-  //     wow: 0,
-  //     heart: 0,
-  //   },
-  // },
-  // {
-  //   id: 2,
-  //   title: " redux store",
-  //   content: "Basic content",
-  //   date: sub(new Date(), { minutes: 5 }).toISOString(),
-  //   reactions: {
-  //     thumpsUp: 0,
-  //     wow: 0,
-  //     heart: 0,
-  //   },
-  // },
   posts: [],
-  status: "idle" | "loading" | "succeeded" | "failed",
+  status: "idle", //| "loading" | "succeeded" | "failed",
   error: null,
 };
-
-
 
 const postSlice = createSlice({
   name: "posts",
@@ -79,39 +102,75 @@ const postSlice = createSlice({
         existingPost.reactions[reaction]++;
       }
     },
-    extraReducers(builder) {
-      builder
-        .addCase(fetchPosts.pending, (state, action) => {
-          state.status = "loading";
-        })
-        .addCase(fetchPosts.fulfilled, (state, action) => {
-          state.status = "succeeded";
-          //adding data and reactions
-          let min = 1;
-          const loadedPosts = action.payload.map((post) => {
-            (post.date = sub(new Date(), { minutes: min++ }).toISOString()),
-              (post.reactions = {
-                thumpsUp: 0,
-                wow: 0,
-                heart: 0,
-              });
-            return post;
-          });
-          //add fetched posts to array
-
-          state.posts = state.posts.concat(loadedPosts);
-        })
-        .addCase(fetchPosts.rejected, (state, action) => {
-          state.status = "error";
-          state.error = action.error.message;
+  },
+  extraReducers(builder) {
+    builder
+      .addCase(fetchPosts.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        //adding data and reactions
+        let min = 1;
+        const loadedPosts = action.payload?.map((post) => {
+          (post.date = sub(new Date(), { minutes: min++ }).toISOString()),
+            (post.reactions = {
+              thumpsUp: 0,
+              wow: 0,
+              heart: 0,
+            });
+          return post;
         });
-    },
+        //add fetched posts to array
+
+        state.posts = state.posts.concat(loadedPosts);
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.status = "error";
+        state.error = action.error.message;
+      })
+      .addCase(addNewPost.fulfilled, (state, action) => {
+        action.payload.userId = Number(action.payload.userId);
+        action.payload.date = new Date().toISOString();
+        action.payload.reactions = {
+          thumpsUp: 0,
+          wow: 0,
+          heart: 0,
+        };
+        console.log(action.payload);
+        state.posts.push(action.payload);
+      })
+      .addCase(updatePost.fulfilled, (state, action) => {
+        if (!action.payload?.id) {
+          console.log("update could not complete");
+          console.log(action.payload);
+          return;
+        }
+        const { id } = action.payload;
+        action.payload.date = new Date().toISOString();
+        const posts = state.posts.filter((post) => post.id !== id);
+        state.posts = [...posts, action.payload];
+      })
+      .addCase(deletePost.fulfilled, (state, action) => {
+        if (!action.payload?.id) {
+          console.log("Delete could not complete");
+          console.log(action.payload);
+          return action.payload;
+        }
+
+        const { id } = action.payload;
+        const posts = state.posts.filter((post) => post.id !== id);
+        state.posts = posts;
+      });
   },
 });
 
 export const selectAllPosts = (state) => state.posts.posts;
 export const getPostsStatus = (state) => state.posts.status;
 export const getPostsError = (state) => state.posts.error;
+
+export const selectPostById = (state, postId) =>
+  state.posts.posts.find((post) => post.id === postId);
 
 export const { postAdded, reactionAdded } = postSlice.actions;
 
